@@ -1,0 +1,952 @@
+openapi: 3.0.3
+info:
+  title: BLuxA Corp Transportation Management API
+  description: |
+    Complete API for BLuxA Corp luxury transportation management system.
+    
+    Features:
+    - Customer booking and payment processing
+    - Driver management and assignment
+    - Vehicle fleet management
+    - Admin dashboard and settings
+    - Real-time notifications
+    - Multi-language support
+    
+    Authentication: Bearer JWT tokens via Supabase Auth
+  version: 1.0.0
+  contact:
+    name: BLuxA Corp API Support
+    email: api@bluxacorp.com
+  license:
+    name: Proprietary
+    url: https://bluxacorp.com/license
+
+servers:
+  - url: https://bluxa-api-production.run.app
+    description: Production server
+  - url: https://bluxa-api-staging.run.app
+    description: Staging server
+  - url: http://localhost:5000
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Check API health and service status
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  services:
+                    type: object
+                    properties:
+                      supabase:
+                        type: boolean
+                      stripe:
+                        type: boolean
+                      resend:
+                        type: boolean
+                      whatsapp:
+                        type: boolean
+
+  /pricing:
+    get:
+      summary: Get current pricing
+      description: Retrieve current pricing for all vehicle types from database
+      tags: [Pricing]
+      security: []
+      responses:
+        '200':
+          description: Current pricing information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pricing:
+                    type: object
+                    properties:
+                      executive_sedan:
+                        $ref: '#/components/schemas/VehiclePricing'
+                      luxury_suv:
+                        $ref: '#/components/schemas/VehiclePricing'
+                      sprinter_van:
+                        $ref: '#/components/schemas/VehiclePricing'
+
+  /auth/register:
+    post:
+      summary: Register new user
+      description: Create new user account with role-based access
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, full_name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                full_name:
+                  type: string
+                phone:
+                  type: string
+                role:
+                  type: string
+                  enum: [customer, driver, admin]
+                  default: customer
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input data
+        '409':
+          description: User already exists
+
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticate user and return JWT token
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /bookings:
+    get:
+      summary: Get bookings
+      description: Retrieve bookings based on user role and permissions
+      tags: [Bookings]
+      responses:
+        '200':
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bookings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+                  count:
+                    type: integer
+
+    post:
+      summary: Create new booking
+      description: Create a new transportation booking
+      tags: [Bookings]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+      responses:
+        '201':
+          description: Booking created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  booking:
+                    $ref: '#/components/schemas/Booking'
+                  payment_required:
+                    type: boolean
+
+  /bookings/{booking_id}/status:
+    put:
+      summary: Update booking status
+      description: Update the status of a booking (admin/driver only)
+      tags: [Bookings]
+      parameters:
+        - name: booking_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, confirmed, assigned, in_progress, completed, cancelled]
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  booking:
+                    $ref: '#/components/schemas/Booking'
+
+  /payments/create-intent:
+    post:
+      summary: Create payment intent
+      description: Create Stripe payment intent for booking
+      tags: [Payments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                  description: UUID of the booking (not the human-readable BLX... ID)
+      responses:
+        '200':
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_secret:
+                    type: string
+                  payment_intent_id:
+                    type: string
+                  amount:
+                    type: number
+
+  /webhooks/stripe:
+    post:
+      summary: Stripe webhook handler
+      description: Handle Stripe payment webhooks
+      tags: [Webhooks]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed successfully
+
+  /admin/dashboard:
+    get:
+      summary: Admin dashboard data
+      description: Get comprehensive admin dashboard metrics
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: '#/components/schemas/DashboardStats'
+                  recent_bookings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+
+  /admin/vehicles:
+    get:
+      summary: List vehicles
+      description: Get all vehicles with optional status filter
+      tags: [Admin - Vehicles]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [available, maintenance, retired]
+      responses:
+        '200':
+          description: List of vehicles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vehicle'
+
+    post:
+      summary: Create vehicle
+      description: Add new vehicle to fleet
+      tags: [Admin - Vehicles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleRequest'
+      responses:
+        '201':
+          description: Vehicle created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+
+  /admin/vehicles/{vehicle_id}:
+    put:
+      summary: Update vehicle
+      description: Update vehicle details and status
+      tags: [Admin - Vehicles]
+      parameters:
+        - name: vehicle_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleUpdate'
+      responses:
+        '200':
+          description: Vehicle updated successfully
+
+  /admin/drivers:
+    get:
+      summary: List drivers
+      description: Get all drivers with optional status filter
+      tags: [Admin - Drivers]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, pending]
+      responses:
+        '200':
+          description: List of drivers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drivers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Driver'
+
+    post:
+      summary: Create driver
+      description: Add new driver to system
+      tags: [Admin - Drivers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverRequest'
+      responses:
+        '201':
+          description: Driver created successfully
+
+  /admin/drivers/{driver_id}:
+    put:
+      summary: Update driver
+      description: Update driver details and status
+      tags: [Admin - Drivers]
+      parameters:
+        - name: driver_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverUpdate'
+      responses:
+        '200':
+          description: Driver updated successfully
+
+  /admin/assign-driver:
+    post:
+      summary: Assign driver to booking
+      description: Assign a driver to a specific booking
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id, driver_id]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                driver_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Driver assigned successfully
+
+  /admin/settings:
+    get:
+      summary: Get admin settings
+      description: Retrieve all system settings
+      tags: [Admin]
+      responses:
+        '200':
+          description: System settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SystemSetting'
+
+    post:
+      summary: Update admin setting
+      description: Create or update a system setting
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemSettingRequest'
+      responses:
+        '200':
+          description: Setting updated successfully
+
+  /admin/notifications/retry:
+    post:
+      summary: Retry failed notifications
+      description: Manually trigger retry of failed notifications
+      tags: [Admin]
+      responses:
+        '202':
+          description: Retry process started
+
+  /driver/dashboard:
+    get:
+      summary: Driver dashboard
+      description: Get driver-specific dashboard data
+      tags: [Driver]
+      responses:
+        '200':
+          description: Driver dashboard data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  driver:
+                    $ref: '#/components/schemas/Driver'
+                  stats:
+                    $ref: '#/components/schemas/DriverStats'
+                  today_schedule:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+
+  /seed/super-admin:
+    post:
+      summary: Create super admin
+      description: Create initial super admin account (one-time setup)
+      tags: [System]
+      security: []
+      parameters:
+        - name: X-Seed-Token
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Super admin created successfully
+        '200':
+          description: Super admin already exists
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    VehiclePricing:
+      type: object
+      properties:
+        base_rate:
+          type: number
+          format: float
+          example: 25.00
+        per_hour_rate:
+          type: number
+          format: float
+          example: 65.00
+        airport_transfer_rate:
+          type: number
+          format: float
+          example: 75.00
+        minimum_charge:
+          type: number
+          format: float
+          example: 50.00
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+            role:
+              type: string
+            full_name:
+              type: string
+            phone:
+              type: string
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+
+    BookingRequest:
+      type: object
+      required: [pickup_location, destination, pickup_date, pickup_time, customer_name, customer_email, customer_phone]
+      properties:
+        pickup_location:
+          type: string
+          example: "JFK Airport"
+        destination:
+          type: string
+          example: "Times Square"
+        pickup_date:
+          type: string
+          format: date
+          example: "2024-12-25"
+        pickup_time:
+          type: string
+          format: time
+          example: "14:30"
+        vehicle_type:
+          type: string
+          enum: [executive_sedan, luxury_suv, sprinter_van]
+          default: executive_sedan
+        customer_name:
+          type: string
+          example: "John Doe"
+        customer_email:
+          type: string
+          format: email
+          example: "john@example.com"
+        customer_phone:
+          type: string
+          example: "+1-555-123-4567"
+        estimated_duration:
+          type: integer
+          description: Estimated duration in minutes
+          example: 60
+        special_instructions:
+          type: string
+          example: "Please wait in arrivals area"
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          example: "BLX20241225ABC123"
+        pickup_address:
+          type: string
+        destination_address:
+          type: string
+        pickup_date:
+          type: string
+          format: date
+        pickup_time:
+          type: string
+          format: time
+        vehicle_type:
+          type: string
+        customer_name:
+          type: string
+        customer_email:
+          type: string
+        customer_phone:
+          type: string
+        estimated_duration:
+          type: integer
+        base_price:
+          type: number
+        total_amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, confirmed, assigned, in_progress, completed, cancelled]
+        payment_status:
+          type: string
+          enum: [pending, paid, failed, refunded]
+        special_requests:
+          type: string
+        confirmation_code:
+          type: string
+        driver_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicle_id:
+          type: string
+          example: "VEH001"
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: integer
+        color:
+          type: string
+        license_plate:
+          type: string
+        vin:
+          type: string
+        vehicle_type:
+          type: string
+        passenger_capacity:
+          type: integer
+        luggage_capacity:
+          type: integer
+        base_rate:
+          type: number
+        per_hour_rate:
+          type: number
+        airport_surcharge:
+          type: number
+        minimum_charge:
+          type: number
+        status:
+          type: string
+          enum: [available, maintenance, retired]
+        features:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        images:
+          type: array
+          items:
+            type: string
+
+    VehicleRequest:
+      type: object
+      required: [make, model, year, license_plate, vin, vehicle_type, passenger_capacity]
+      properties:
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: integer
+        color:
+          type: string
+        license_plate:
+          type: string
+        vin:
+          type: string
+        vehicle_type:
+          type: string
+        passenger_capacity:
+          type: integer
+        luggage_capacity:
+          type: integer
+        base_rate:
+          type: number
+        per_hour_rate:
+          type: number
+        airport_surcharge:
+          type: number
+        minimum_charge:
+          type: number
+
+    VehicleUpdate:
+      type: object
+      properties:
+        color:
+          type: string
+        status:
+          type: string
+        base_rate:
+          type: number
+        per_hour_rate:
+          type: number
+        airport_surcharge:
+          type: number
+        minimum_charge:
+          type: number
+        features:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+
+    Driver:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driver_id:
+          type: string
+          example: "DRV001"
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        employment_status:
+          type: string
+          enum: [pending, active, inactive, terminated]
+        account_status:
+          type: string
+          enum: [pending, active, suspended]
+        status:
+          type: string
+          enum: [offline, available, busy, on_break]
+        hourly_rate:
+          type: number
+        commission_rate:
+          type: number
+        rating:
+          type: number
+        total_rides:
+          type: integer
+
+    DriverRequest:
+      type: object
+      required: [email, first_name, last_name, phone]
+      properties:
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        hourly_rate:
+          type: number
+        commission_rate:
+          type: number
+
+    DriverUpdate:
+      type: object
+      properties:
+        employment_status:
+          type: string
+        account_status:
+          type: string
+        status:
+          type: string
+        hourly_rate:
+          type: number
+        commission_rate:
+          type: number
+        phone:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+
+    DashboardStats:
+      type: object
+      properties:
+        total_bookings:
+          type: integer
+        active_drivers:
+          type: integer
+        total_vehicles:
+          type: integer
+        pending_bookings:
+          type: integer
+        monthly_revenue:
+          type: number
+        average_rating:
+          type: number
+
+    DriverStats:
+      type: object
+      properties:
+        today_rides:
+          type: integer
+        total_rides:
+          type: integer
+        week_earnings:
+          type: number
+        rating:
+          type: number
+
+    SystemSetting:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        setting_key:
+          type: string
+        setting_value:
+          type: string
+        setting_type:
+          type: string
+        category:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        updated_by:
+          type: string
+          format: uuid
+
+    SystemSettingRequest:
+      type: object
+      required: [setting_key, setting_value]
+      properties:
+        setting_key:
+          type: string
+        setting_value:
+          type: string
+        setting_type:
+          type: string
+          default: string
+        category:
+          type: string
+          default: general
+
+tags:
+  - name: System
+    description: System health and configuration
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Pricing
+    description: Vehicle pricing information
+  - name: Bookings
+    description: Transportation booking management
+  - name: Payments
+    description: Payment processing
+  - name: Webhooks
+    description: External service webhooks
+  - name: Admin
+    description: Administrative functions
+  - name: Admin - Vehicles
+    description: Vehicle fleet management
+  - name: Admin - Drivers
+    description: Driver management
+  - name: Driver
+    description: Driver portal functions

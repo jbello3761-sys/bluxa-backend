@@ -1,0 +1,28 @@
+# BLuxA Corp - Production Python Dependencies
+
+# Core Flask framework
+Flask==3.0.3
+flask-cors==4.0.0
+flask-limiter==3.8.0
+
+# Payment processing
+stripe==9.8.0
+
+# Database and authentication
+supabase==2.6.0
+
+# HTTP requests and utilities
+requests==2.32.3
+
+# Production server (optional - Cloud Run uses built-in)
+gunicorn==21.2.0
+
+# Security and validation
+cryptography==41.0.7
+PyJWT==2.8.0
+
+# Logging and monitoring
+structlog==23.2.0
+
+# Environment management
+python-dotenv==1.0.0
