@@ -36,11 +36,18 @@ ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://loc
 CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
 # Rate limiting for security
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+# Make sure your Flask app exists before calling init_app:
+# app = Flask(__name__)  <-- this must be defined above
+
 limiter = Limiter(
-    app,
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"]
 )
+
+limiter.init_app(app)
 
 # Environment variables
 SUPABASE_URL = os.getenv('SUPABASE_URL', '')
