@@ -1060,18 +1060,126 @@ def create_payment_intent():
 
 @app.route('/webhooks/stripe', methods=['POST'])
 def stripe_webhook():
-    """Handle Stripe webhooks with complete payment flow"""
-    payload = request.get_data()
+    """Handle Stripe webhooks with service-role updates + idempotency logging"""
+    db = supabase_admin or supabase  # prefer service role client when available
+    payload = request.get_data()     # RAW body (do NOT json.loads here)
     sig_header = request.headers.get('Stripe-Signature')
-    
+
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
     except ValueError:
         return jsonify({'error': 'Invalid payload'}), 400
     except stripe.error.SignatureVerificationError:
         return jsonify({'error': 'Invalid signature'}), 400
+
+    # Log the event once (safe to ignore errors if table not present yet)
+    try:
+        db.table('stripe_events').upsert({
+            'id': event['id'],
+            'type': event['type'],
+            'payload': event,
+            'created_at': datetime.utcnow().isoformat() + "Z"
+        }).execute()
+    except Exception as e:
+        logger.warning(f"stripe_events upsert warn: {e}")
+
+    if event['type'] == 'payment_intent.succeeded':
+        pi = event['data']['object']
+        booking_uuid = (pi.get('metadata') or {}).get('booking_id')  # bookings.id (UUID)
+        amount_cents = int(pi.get('amount') or 0)
+
+        if booking_uuid:
+            # 1) mark payment completed
+            try:
+                db.table('payments').update({
+                    'payment_status': 'completed',
+                    'processed_at': datetime.utcnow().isoformat(),
+                    'gateway_transaction_id': pi['id']
+                }).eq('transaction_id', pi['id']).execute()
+            except Exception as e:
+                logger.error(f"payments update failed: {e}")
+
+            # 2) mark booking paid/confirmed + store extras
+            try:
+                r = db.table('bookings').update({
+                    'payment_status': 'paid',
+                    'status': 'confirmed',
+                    'stripe_payment_intent_id': pi['id'],     # optional column
+                    'paid_at': datetime.utcnow().isoformat(), # optional column
+                    'updated_at': datetime.utcnow().isoformat()
+                }).eq('id', booking_uuid).execute()
+            except Exception as e:
+                logger.error(f"bookings update failed: {e}")
+                r = None
+
+            # 3) audit + notifications
+            if r and r.data:
+                booking = r.data[0]
+                try:
+                    create_audit_log(
+                        booking.get('customer_email'),
+                        'customer',
+                        'payment_completed',
+                        'payment',
+                        booking_uuid,
+                        {'booking_id': booking.get('booking_id'), 'amount': amount_cents / 100.0}
+                    )
+
+                    notification = create_notification(
+                        booking.get('customer_email'),
+                        'customer',
+                        'payment_confirmation',
+                        f'Payment Confirmed - {booking.get("booking_id")}',
+                        f'Your payment of ${amount_cents/100.0:.2f} has been processed successfully.',
+                        {'booking_id': booking.get('booking_id'),
+                         'amount': amount_cents/100.0,
+                         'phone': booking.get('customer_phone')}
+                    )
+
+                    email_subject = f"Payment Confirmed - {booking.get('booking_id')}"
+                    email_content = f"""
+                    <h2>Payment Confirmation</h2>
+                    <p>Dear {booking.get('customer_name')},</p>
+                    <p>Your payment has been processed successfully!</p>
+                    <h3>Payment Details:</h3>
+                    <ul>
+                        <li><strong>Booking ID:</strong> {booking.get('booking_id')}</li>
+                        <li><strong>Amount Paid:</strong> ${amount_cents/100.0:.2f}</li>
+                        <li><strong>Status:</strong> Confirmed</li>
+                        <li><strong>Date:</strong> {booking.get('pickup_date')}</li>
+                        <li><strong>Time:</strong> {booking.get('pickup_time')}</li>
+                    </ul>
+                    """
+                    send_email_with_retry(
+                        booking.get('customer_email'),
+                        email_subject,
+                        email_content,
+                        notification['id'] if notification else None
+                    )
+                    send_whatsapp_with_retry(
+                        booking.get('customer_phone'),
+                        f"BLuxA Corp: Payment confirmed! Your booking {booking.get('booking_id')} is now confirmed.",
+                        notification['id'] if notification else None
+                    )
+                except Exception as e:
+                    logger.warning(f"post-payment notifications warn: {e}")
+
+    elif event['type'] == 'payment_intent.payment_failed':
+        pi = event['data']['object']
+        booking_uuid = (pi.get('metadata') or {}).get('booking_id')
+        if booking_uuid:
+            try:
+                db.table('bookings').update({
+                    'payment_status': 'failed',
+                    'status': 'pending',
+                    'updated_at': datetime.utcnow().isoformat()
+                }).eq('id', booking_uuid).execute()
+            except Exception as e:
+                logger.error(f"bookings fail-mark failed: {e}")
+
+    # Always acknowledge quickly
+    return jsonify({'status': 'success'}), 200
+
     
     # Handle payment success
     if event['type'] == 'payment_intent.succeeded':
