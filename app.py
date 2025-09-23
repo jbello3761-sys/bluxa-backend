@@ -54,7 +54,9 @@ WHATSAPP_WEBHOOK_URL = os.getenv('WHATSAPP_WEBHOOK_URL', '')
 
 # Initialize services
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY) if SUPABASE_URL and SUPABASE_ANON_KEY else None
+supabase_admin: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
 stripe.api_key = STRIPE_SECRET_KEY
+
 
 # Track if super admin has been created (for seed script security)
 SUPER_ADMIN_CREATED = None
