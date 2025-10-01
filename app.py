@@ -7,7 +7,14 @@ import stripe
 
 # BLuxA Corp API - Version 3.0 (Fresh deployment)
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS for Vercel frontend
+CORS(app, origins=[
+    "https://bluxa-corp-nextjs-*.vercel.app",
+    "https://bluxa-corp-nextjs.vercel.app", 
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+])
 
 # Configure Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
