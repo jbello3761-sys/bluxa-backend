@@ -4,7 +4,6 @@ import os
 import uuid
 from datetime import datetime
 import stripe
-import json
 
 app = Flask(__name__)
 CORS(app)
