@@ -33,9 +33,26 @@ def health_check():
 @app.route('/pricing', methods=['GET'])
 def get_pricing():
     return jsonify({
-        "vehicle_types": pricing_data,
-        "currency": "USD",
-        "unit": "cents"
+        "pricing": {
+            "executive_sedan": {
+                "airport_transfer_rate": 75.0,
+                "base_rate": 25.0,
+                "minimum_charge": 50.0,
+                "per_hour_rate": 65.0
+            },
+            "luxury_suv": {
+                "airport_transfer_rate": 75.0,
+                "base_rate": 25.0,
+                "minimum_charge": 50.0,
+                "per_hour_rate": 65.0
+            },
+            "sprinter_van": {
+                "airport_transfer_rate": 75.0,
+                "base_rate": 25.0,
+                "minimum_charge": 50.0,
+                "per_hour_rate": 65.0
+            }
+        }
     })
 
 @app.route('/bookings', methods=['POST'])
