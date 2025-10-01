@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 import stripe
 
-# BLuxA Corp API - Version 2.0 (Clean deployment)
+# BLuxA Corp API - Version 3.0 (Fresh deployment)
 app = Flask(__name__)
 CORS(app)
 
@@ -26,7 +26,8 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "service": "BLuxA Corp API"
+        "service": "BLuxA Corp API",
+        "version": "3.0"
     })
 
 @app.route('/pricing', methods=['GET'])
