@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 import stripe
 
+# BLuxA Corp API - Version 2.0 (Clean deployment)
 app = Flask(__name__)
 CORS(app)
 

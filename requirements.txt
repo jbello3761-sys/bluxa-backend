@@ -3,3 +3,4 @@ Flask-CORS==4.0.0
 stripe==7.9.0
 python-dotenv==1.0.0
 PyYAML==6.0.1
+gunicorn==21.2.0
