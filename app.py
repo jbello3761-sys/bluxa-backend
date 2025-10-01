@@ -165,4 +165,5 @@ def get_payment_status(payment_intent_id):
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     print(f"Starting BLuxA Corp API on port {port}")
+    print(f"PORT environment variable: {os.getenv('PORT')}")
     app.run(host='0.0.0.0', port=port, debug=False)
