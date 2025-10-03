@@ -121,22 +121,22 @@ def get_pricing():
     return jsonify({
         "pricing": {
             "executive_sedan": {
-                "airport_transfer_rate": 75.0,
-                "base_rate": 25.0,
-                "minimum_charge": 50.0,
-                "per_hour_rate": 65.0
+                "airport_transfer_rate": 7500,  # $75.00 in cents
+                "base_rate": 2500,  # $25.00 in cents
+                "minimum_charge": 5000,  # $50.00 in cents
+                "per_hour_rate": 6500   # $65.00 in cents
             },
             "luxury_suv": {
-                "airport_transfer_rate": 75.0,
-                "base_rate": 25.0,
-                "minimum_charge": 50.0,
-                "per_hour_rate": 65.0
+                "airport_transfer_rate": 10500,  # $105.00 in cents
+                "base_rate": 3500,  # $35.00 in cents
+                "minimum_charge": 7000,  # $70.00 in cents
+                "per_hour_rate": 9500   # $95.00 in cents
             },
             "sprinter_van": {
-                "airport_transfer_rate": 75.0,
-                "base_rate": 25.0,
-                "minimum_charge": 50.0,
-                "per_hour_rate": 65.0
+                "airport_transfer_rate": 13000,  # $130.00 in cents
+                "base_rate": 5000,  # $50.00 in cents
+                "minimum_charge": 8000,  # $80.00 in cents
+                "per_hour_rate": 12000   # $120.00 in cents
             }
         }
     })
