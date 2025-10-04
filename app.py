@@ -133,12 +133,19 @@ def get_pricing():
                 "per_hour_rate": 9500   # $95.00 in cents
             },
             "sprinter_van": {
-                "airport_transfer_rate": 13000,  # $130.00 in cents
+                "airport_transfer_rate": 15000,  # $150.00 in cents
                 "base_rate": 5000,  # $50.00 in cents
-                "minimum_charge": 8000,  # $80.00 in cents
+                "minimum_charge": 10000,  # $100.00 in cents
                 "per_hour_rate": 12000   # $120.00 in cents
+            },
+            "stretch_limo": {
+                "airport_transfer_rate": 18000,  # $180.00 in cents
+                "base_rate": 6000,  # $60.00 in cents
+                "minimum_charge": 12000,  # $120.00 in cents
+                "per_hour_rate": 15000   # $150.00 in cents
             }
-        }
+        },
+        "currency": "USD"
     })
 
 @app.route('/bookings', methods=['POST'])
