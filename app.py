@@ -18,13 +18,8 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure CORS for Vercel frontend
-CORS(app, origins=[
-    "https://bluxa-corp-nextjs-*.vercel.app",
-    "https://bluxa-corp-nextjs.vercel.app", 
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-])
+# Configure CORS for Vercel frontend - Allow all origins for now
+CORS(app, origins="*", methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["Content-Type", "Authorization"])
 
 # Configure Flask-Limiter with Redis storage (fallback to memory if Redis unavailable)
 try:
@@ -227,14 +222,27 @@ def get_booking(booking_id):
 @limiter.limit("5 per minute")
 def create_payment_intent():
     try:
+        # Check if request has JSON data
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+            
         data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
         booking_id = data.get('booking_id')
+        if not booking_id:
+            return jsonify({"error": "booking_id is required"}), 400
         
         if booking_id not in bookings_db:
             return jsonify({"error": "Booking not found"}), 404
         
         booking = bookings_db[booking_id]
         amount = booking['estimated_price']
+        
+        # Validate Stripe API key
+        if not stripe.api_key:
+            return jsonify({"error": "Stripe API key not configured"}), 500
         
         # Create Stripe payment intent
         intent = stripe.PaymentIntent.create(
@@ -246,6 +254,8 @@ def create_payment_intent():
             }
         )
         
+        logger.info(f"Created payment intent {intent.id} for booking {booking_id}")
+        
         return jsonify({
             "id": intent.id,
             "client_secret": intent.client_secret,
@@ -254,8 +264,12 @@ def create_payment_intent():
             "status": intent.status
         })
         
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error: {e}")
+        return jsonify({"error": f"Payment processing error: {str(e)}"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error(f"Unexpected error: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 @app.route('/payments/confirm', methods=['POST'])
 @limiter.limit("5 per minute")
