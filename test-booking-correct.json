@@ -1,0 +1,1 @@
+{"pickup_location":"123 Test St","dropoff_location":"456 Test Ave","pickup_datetime":"2025-10-07T10:00:00","vehicle_type":"executive_sedan","customer_name":"Test User","customer_email":"test@example.com","customer_phone":"555-1234","estimated_duration":60,"passenger_count":1,"contact_info":{"name":"Test User","email":"test@example.com","phone":"555-1234"}}

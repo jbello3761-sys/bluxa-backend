@@ -10,6 +10,7 @@ import requests
 import logging
 from threading import Thread
 import time
+import resend
 
 # BLuxA Corp API - Version 3.0 (Fresh deployment)
 app = Flask(__name__)
@@ -39,6 +40,14 @@ except Exception as e:
 
 # Configure Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
+# Configure Resend for emails
+resend.api_key = os.getenv('RESEND_API_KEY')
+
+# Email configuration
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@bluxatransportation.com')
+DRIVER_EMAIL = os.getenv('DRIVER_EMAIL', 'drivers@bluxatransportation.com')
+FROM_EMAIL = os.getenv('FROM_EMAIL', 'bookings@bluxatransportation.com')
 
 # Sample data storage (in production, use a database)
 bookings_db = {}
@@ -72,6 +81,487 @@ def send_notification(notification_data):
         return False
     except Exception as e:
         logger.error(f"Unexpected error sending notification: {e}")
+        return False
+
+def send_email(to_email, subject, html_content, text_content=None):
+    """Send email using Resend"""
+    try:
+        if not resend.api_key or resend.api_key == 'your-resend-key-here':
+            logger.warning("Resend API key not configured")
+            return False
+            
+        params = {
+            "from": FROM_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+        }
+        
+        if text_content:
+            params["text"] = text_content
+            
+        email = resend.Emails.send(params)
+        logger.info(f"Email sent successfully to {to_email}: {email.id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
+        return False
+
+def send_booking_confirmation(booking_data):
+    """Send booking confirmation emails to customer, admin, and driver"""
+    try:
+        # Format booking details
+        pickup_datetime = datetime.fromisoformat(booking_data['pickup_datetime'].replace('Z', '+00:00'))
+        formatted_datetime = pickup_datetime.strftime('%A, %B %d, %Y at %I:%M %p')
+        amount_dollars = booking_data['estimated_price'] / 100
+        
+        # Customer confirmation email
+        customer_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #2563eb 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .booking-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                .detail-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }}
+                .detail-label {{ font-weight: bold; color: #6b7280; }}
+                .detail-value {{ color: #111827; }}
+                .total {{ background: #2563eb; color: white; padding: 15px; border-radius: 8px; text-align: center; font-size: 18px; font-weight: bold; margin: 20px 0; }}
+                .footer {{ text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>BLuxA Transportation</h1>
+                    <h2>Booking Confirmation</h2>
+                </div>
+                <div class="content">
+                    <p>Dear {booking_data['contact_info']['name']},</p>
+                    <p>Thank you for choosing BLuxA Transportation! Your booking has been confirmed.</p>
+                    
+                    <div class="booking-details">
+                        <h3>Booking Details</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">Booking Code:</span>
+                            <span class="detail-value">{booking_data['booking_id']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup Location:</span>
+                            <span class="detail-value">{booking_data['pickup_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Destination:</span>
+                            <span class="detail-value">{booking_data['dropoff_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup Date & Time:</span>
+                            <span class="detail-value">{formatted_datetime}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Vehicle Type:</span>
+                            <span class="detail-value">{booking_data['vehicle_type'].replace('_', ' ').title()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Passengers:</span>
+                            <span class="detail-value">{booking_data['passenger_count']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Status:</span>
+                            <span class="detail-value">{booking_data['status'].title()}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="total">
+                        Total Amount: ${amount_dollars:.2f}
+                    </div>
+                    
+                    <p>Your driver will contact you 15 minutes before pickup. If you have any questions, please contact us at +1 (555) 123-4567.</p>
+                    
+                    <div class="footer">
+                        <p>BLuxA Transportation - Premium Luxury Transportation</p>
+                        <p>New York City, NY | 24/7 Available</p>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Admin notification email
+        admin_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .booking-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                .detail-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }}
+                .detail-label {{ font-weight: bold; color: #6b7280; }}
+                .detail-value {{ color: #111827; }}
+                .urgent {{ background: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>New Booking Alert</h1>
+                    <h2>BLuxA Transportation</h2>
+                </div>
+                <div class="content">
+                    <div class="urgent">
+                        <h3>🚨 New Booking Requires Attention</h3>
+                        <p>A new booking has been created and requires driver assignment.</p>
+                    </div>
+                    
+                    <div class="booking-details">
+                        <h3>Booking Information</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">Booking Code:</span>
+                            <span class="detail-value">{booking_data['booking_id']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Customer:</span>
+                            <span class="detail-value">{booking_data['contact_info']['name']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Email:</span>
+                            <span class="detail-value">{booking_data['contact_info']['email']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Phone:</span>
+                            <span class="detail-value">{booking_data['contact_info']['phone']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup:</span>
+                            <span class="detail-value">{booking_data['pickup_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Destination:</span>
+                            <span class="detail-value">{booking_data['dropoff_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Date & Time:</span>
+                            <span class="detail-value">{formatted_datetime}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Vehicle:</span>
+                            <span class="detail-value">{booking_data['vehicle_type'].replace('_', ' ').title()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Amount:</span>
+                            <span class="detail-value">${amount_dollars:.2f}</span>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Action Required:</strong> Please assign a driver and confirm the booking.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Driver notification email
+        driver_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #059669; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .booking-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                .detail-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }}
+                .detail-label {{ font-weight: bold; color: #6b7280; }}
+                .detail-value {{ color: #111827; }}
+                .instructions {{ background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>New Assignment</h1>
+                    <h2>BLuxA Transportation</h2>
+                </div>
+                <div class="content">
+                    <div class="instructions">
+                        <h3>📋 Driver Instructions</h3>
+                        <p>You have been assigned a new booking. Please review the details below and contact the customer 15 minutes before pickup.</p>
+                    </div>
+                    
+                    <div class="booking-details">
+                        <h3>Trip Details</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">Booking Code:</span>
+                            <span class="detail-value">{booking_data['booking_id']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Customer Name:</span>
+                            <span class="detail-value">{booking_data['contact_info']['name']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Customer Phone:</span>
+                            <span class="detail-value">{booking_data['contact_info']['phone']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup Location:</span>
+                            <span class="detail-value">{booking_data['pickup_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Destination:</span>
+                            <span class="detail-value">{booking_data['dropoff_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup Time:</span>
+                            <span class="detail-value">{formatted_datetime}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Vehicle Type:</span>
+                            <span class="detail-value">{booking_data['vehicle_type'].replace('_', ' ').title()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Passengers:</span>
+                            <span class="detail-value">{booking_data['passenger_count']}</span>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Important:</strong> Please arrive 5 minutes early and contact the customer upon arrival.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send emails asynchronously
+        def send_emails():
+            # Send to customer
+            send_email(
+                booking_data['contact_info']['email'],
+                f"Booking Confirmation - {booking_data['booking_id']}",
+                customer_html
+            )
+            
+            # Send to admin
+            send_email(
+                ADMIN_EMAIL,
+                f"New Booking Alert - {booking_data['booking_id']}",
+                admin_html
+            )
+            
+            # Send to driver
+            send_email(
+                DRIVER_EMAIL,
+                f"New Assignment - {booking_data['booking_id']}",
+                driver_html
+            )
+        
+        # Run email sending in background thread
+        email_thread = Thread(target=send_emails)
+        email_thread.daemon = True
+        email_thread.start()
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send booking confirmation emails: {e}")
+        return False
+
+def send_payment_receipt(booking_data, payment_intent_id):
+    """Send payment receipt emails to customer and admin"""
+    try:
+        # Format booking details
+        pickup_datetime = datetime.fromisoformat(booking_data['pickup_datetime'].replace('Z', '+00:00'))
+        formatted_datetime = pickup_datetime.strftime('%A, %B %d, %Y at %I:%M %p')
+        amount_dollars = booking_data['estimated_price'] / 100
+        
+        # Customer receipt email
+        customer_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #059669 0%, #2563eb 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .receipt-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                .detail-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }}
+                .detail-label {{ font-weight: bold; color: #6b7280; }}
+                .detail-value {{ color: #111827; }}
+                .total {{ background: #059669; color: white; padding: 15px; border-radius: 8px; text-align: center; font-size: 18px; font-weight: bold; margin: 20px 0; }}
+                .payment-info {{ background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+                .footer {{ text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>BLuxA Transportation</h1>
+                    <h2>Payment Receipt</h2>
+                </div>
+                <div class="content">
+                    <p>Dear {booking_data['contact_info']['name']},</p>
+                    <p>Thank you for your payment! Your booking is now confirmed and paid.</p>
+                    
+                    <div class="payment-info">
+                        <h3>✅ Payment Confirmed</h3>
+                        <p>Payment ID: {payment_intent_id}</p>
+                        <p>Status: Paid</p>
+                    </div>
+                    
+                    <div class="receipt-details">
+                        <h3>Booking Details</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">Booking Code:</span>
+                            <span class="detail-value">{booking_data['booking_id']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup Location:</span>
+                            <span class="detail-value">{booking_data['pickup_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Destination:</span>
+                            <span class="detail-value">{booking_data['dropoff_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup Date & Time:</span>
+                            <span class="detail-value">{formatted_datetime}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Vehicle Type:</span>
+                            <span class="detail-value">{booking_data['vehicle_type'].replace('_', ' ').title()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Passengers:</span>
+                            <span class="detail-value">{booking_data['passenger_count']}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="total">
+                        Amount Paid: ${amount_dollars:.2f}
+                    </div>
+                    
+                    <p>Your driver will contact you 15 minutes before pickup. If you have any questions, please contact us at +1 (555) 123-4567.</p>
+                    
+                    <div class="footer">
+                        <p>BLuxA Transportation - Premium Luxury Transportation</p>
+                        <p>New York City, NY | 24/7 Available</p>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Admin payment notification email
+        admin_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #059669; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .receipt-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                .detail-row {{ display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }}
+                .detail-label {{ font-weight: bold; color: #6b7280; }}
+                .detail-value {{ color: #111827; }}
+                .payment-confirmed {{ background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Payment Received</h1>
+                    <h2>BLuxA Transportation</h2>
+                </div>
+                <div class="content">
+                    <div class="payment-confirmed">
+                        <h3>💰 Payment Confirmed</h3>
+                        <p>A customer has successfully paid for their booking.</p>
+                    </div>
+                    
+                    <div class="receipt-details">
+                        <h3>Payment Details</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">Payment ID:</span>
+                            <span class="detail-value">{payment_intent_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Booking Code:</span>
+                            <span class="detail-value">{booking_data['booking_id']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Customer:</span>
+                            <span class="detail-value">{booking_data['contact_info']['name']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Email:</span>
+                            <span class="detail-value">{booking_data['contact_info']['email']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Phone:</span>
+                            <span class="detail-value">{booking_data['contact_info']['phone']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Pickup:</span>
+                            <span class="detail-value">{booking_data['pickup_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Destination:</span>
+                            <span class="detail-value">{booking_data['dropoff_location']}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Date & Time:</span>
+                            <span class="detail-value">{formatted_datetime}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Amount:</span>
+                            <span class="detail-value">${amount_dollars:.2f}</span>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Action Required:</strong> Please ensure driver assignment and confirm pickup details.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send emails asynchronously
+        def send_receipt_emails():
+            # Send to customer
+            send_email(
+                booking_data['contact_info']['email'],
+                f"Payment Receipt - {booking_data['booking_id']}",
+                customer_html
+            )
+            
+            # Send to admin
+            send_email(
+                ADMIN_EMAIL,
+                f"Payment Received - {booking_data['booking_id']}",
+                admin_html
+            )
+        
+        # Run email sending in background thread
+        email_thread = Thread(target=send_receipt_emails)
+        email_thread.daemon = True
+        email_thread.start()
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send payment receipt emails: {e}")
         return False
 
 def retry_failed_notifications():
@@ -192,6 +682,13 @@ def create_booking():
         # Store booking
         bookings_db[booking_uuid] = booking
         
+        # Send booking confirmation emails (non-blocking)
+        try:
+            send_booking_confirmation(booking)
+            logger.info(f"Booking confirmation emails sent for {booking_id}")
+        except Exception as e:
+            logger.error(f"Failed to send booking confirmation emails: {e}")
+        
         # Send notification (non-blocking)
         notification_data = {
             "type": "new_booking",
@@ -287,6 +784,13 @@ def confirm_payment():
             if booking_id in bookings_db:
                 bookings_db[booking_id]['status'] = 'confirmed'
                 bookings_db[booking_id]['payment_intent_id'] = payment_intent_id
+                
+                # Send payment receipt emails (non-blocking)
+                try:
+                    send_payment_receipt(bookings_db[booking_id], payment_intent_id)
+                    logger.info(f"Payment receipt emails sent for {booking_id}")
+                except Exception as e:
+                    logger.error(f"Failed to send payment receipt emails: {e}")
         
         return jsonify({
             "status": intent.status,
