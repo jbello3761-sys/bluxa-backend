@@ -603,34 +603,111 @@ def health_check():
 
 @app.route('/pricing', methods=['GET'])
 def get_pricing():
+    location = request.args.get('location', 'nyc')
+    
+    if location == 'dr':
+        return jsonify({
+            "pricing": {
+                "van_4": {
+                    "base_rate": 8000,  # $80.00 in cents
+                    "per_hour_rate": 10000,  # $100.00 in cents
+                    "minimum_charge": 8000,  # $80.00 in cents
+                    "airport_transfer_rate": 10000  # $100.00 in cents
+                },
+                "van_8": {
+                    "base_rate": 12000,  # $120.00 in cents
+                    "per_hour_rate": 15000,  # $150.00 in cents
+                    "minimum_charge": 12000,  # $120.00 in cents
+                    "airport_transfer_rate": 15000  # $150.00 in cents
+                },
+                "van_24": {
+                    "base_rate": 20000,  # $200.00 in cents
+                    "per_hour_rate": 25000,  # $250.00 in cents
+                    "minimum_charge": 20000,  # $200.00 in cents
+                    "airport_transfer_rate": 25000  # $250.00 in cents
+                },
+                "executive_sedan": {
+                    "base_rate": 6000,  # $60.00 in cents
+                    "per_hour_rate": 8000,  # $80.00 in cents
+                    "minimum_charge": 6000,  # $60.00 in cents
+                    "airport_transfer_rate": 8000  # $80.00 in cents
+                },
+                "luxury_suv": {
+                    "base_rate": 8000,  # $80.00 in cents
+                    "per_hour_rate": 10000,  # $100.00 in cents
+                    "minimum_charge": 8000,  # $80.00 in cents
+                    "airport_transfer_rate": 10000  # $100.00 in cents
+                }
+            },
+            "currency": "USD",
+            "location": "dr"
+        })
+    else:
+        return jsonify({
+            "pricing": {
+                "executive_sedan": {
+                    "airport_transfer_rate": 7500,  # $75.00 in cents
+                    "base_rate": 2500,  # $25.00 in cents
+                    "minimum_charge": 5000,  # $50.00 in cents
+                    "per_hour_rate": 6500   # $65.00 in cents
+                },
+                "luxury_suv": {
+                    "airport_transfer_rate": 10500,  # $105.00 in cents
+                    "base_rate": 3500,  # $35.00 in cents
+                    "minimum_charge": 7000,  # $70.00 in cents
+                    "per_hour_rate": 9500   # $95.00 in cents
+                },
+                "sprinter_van": {
+                    "airport_transfer_rate": 15000,  # $150.00 in cents
+                    "base_rate": 5000,  # $50.00 in cents
+                    "minimum_charge": 10000,  # $100.00 in cents
+                    "per_hour_rate": 12000   # $120.00 in cents
+                },
+                "stretch_limo": {
+                    "airport_transfer_rate": 18000,  # $180.00 in cents
+                    "base_rate": 6000,  # $60.00 in cents
+                    "minimum_charge": 12000,  # $120.00 in cents
+                    "per_hour_rate": 15000   # $150.00 in cents
+                }
+            },
+            "currency": "USD",
+            "location": "nyc"
+        })
+
+@app.route('/pricing/dr-routes', methods=['GET'])
+def get_dr_route_pricing():
+    """Get Dominican Republic route-specific pricing"""
     return jsonify({
-        "pricing": {
-            "executive_sedan": {
-                "airport_transfer_rate": 7500,  # $75.00 in cents
-                "base_rate": 2500,  # $25.00 in cents
-                "minimum_charge": 5000,  # $50.00 in cents
-                "per_hour_rate": 6500   # $65.00 in cents
-            },
-            "luxury_suv": {
-                "airport_transfer_rate": 10500,  # $105.00 in cents
-                "base_rate": 3500,  # $35.00 in cents
-                "minimum_charge": 7000,  # $70.00 in cents
-                "per_hour_rate": 9500   # $95.00 in cents
-            },
-            "sprinter_van": {
-                "airport_transfer_rate": 15000,  # $150.00 in cents
-                "base_rate": 5000,  # $50.00 in cents
-                "minimum_charge": 10000,  # $100.00 in cents
-                "per_hour_rate": 12000   # $120.00 in cents
-            },
-            "stretch_limo": {
-                "airport_transfer_rate": 18000,  # $180.00 in cents
-                "base_rate": 6000,  # $60.00 in cents
-                "minimum_charge": 12000,  # $120.00 in cents
-                "per_hour_rate": 15000   # $150.00 in cents
-            }
-        },
-        "currency": "USD"
+        "routes": [
+            {"salida": "AEROPUERTO AILA", "destino": "PUNTA CANA", "precio": 10000, "van4": 12000, "van8": 16000, "van24": 38000},
+            {"salida": "SANTO DOMINGO", "destino": "PUNTA CANA", "precio": 11500, "van4": 13500, "van8": 17500, "van24": 40000},
+            {"salida": "AEROPUERTO AILA", "destino": "BAVARO", "precio": 11000, "van4": 13000, "van8": 17000, "van24": 42000},
+            {"salida": "SANTO DOMINGO", "destino": "BAVARO", "precio": 12000, "van4": 14000, "van8": 18000, "van24": 46000},
+            {"salida": "AEROPUERTO AILA", "destino": "UVERO ALTO", "precio": 12000, "van4": 14000, "van8": 18000, "van24": 48000},
+            {"salida": "SANTO DOMINGO", "destino": "UVERO ALTO", "precio": 14000, "van4": 16000, "van8": 20000, "van24": 50000},
+            {"salida": "AEROPUERTO AILA", "destino": "LAS TERREBAS", "precio": 13500, "van4": 15500, "van8": 19500, "van24": 40000},
+            {"salida": "SANTO DOMINGO", "destino": "LAS TERREBAS", "precio": 15000, "van4": 17000, "van8": 21000, "van24": 42000},
+            {"salida": "AEROPUERTO AILA", "destino": "SAMANA", "precio": 14000, "van4": 16000, "van8": 20000, "van24": 42000},
+            {"salida": "SANTO DOMINGO", "destino": "SAMANA", "precio": 16000, "van4": 18000, "van8": 22000, "van24": 45000},
+            {"salida": "AEROPUERTO AILA", "destino": "LAS GALERAS", "precio": 17000, "van4": 19000, "van8": 23000, "van24": 50000},
+            {"salida": "SANTO DOMINGO", "destino": "LAS GALERAS", "precio": 19000, "van4": 21000, "van8": 25000, "van24": 55000},
+            {"salida": "AEROPUERTO AILA", "destino": "SANTIAGO", "precio": 12000, "van4": 14000, "van8": 18000, "van24": 40000},
+            {"salida": "SANTO DOMINGO", "destino": "SANTIAGO", "precio": 10000, "van4": 12000, "van8": 16000, "van24": 36000},
+            {"salida": "AEROPUERTO AILA", "destino": "LA VEGA", "precio": 10000, "van4": 12000, "van8": 16000, "van24": 35000},
+            {"salida": "SANTO DOMINGO", "destino": "LA VEGA", "precio": 9000, "van4": 11000, "van8": 15000, "van24": 30000},
+            {"salida": "AEROPUERTO AILA", "destino": "PUERTO PLATA", "precio": 17000, "van4": 19000, "van8": 23000, "van24": 50000},
+            {"salida": "SANTO DOMINGO", "destino": "PUERTO PLATA", "precio": 15000, "van4": 17000, "van8": 21000, "van24": 40000},
+            {"salida": "AEROPUERTO AILA", "destino": "SOSUA", "precio": 18000, "van4": 20000, "van8": 24000, "van24": 55000},
+            {"salida": "SANTO DOMINGO", "destino": "SOSUA", "precio": 16000, "van4": 18000, "van8": 22000, "van24": 45000},
+            {"salida": "AEROPUERTO AILA", "destino": "ROMANA", "precio": 8000, "van4": 10000, "van8": 14000, "van24": 30000},
+            {"salida": "SANTO DOMINGO", "destino": "ROMANA", "precio": 9000, "van4": 11000, "van8": 15000, "van24": 35000},
+            {"salida": "AEROPUERTO AILA", "destino": "BAYHIBE", "precio": 8500, "van4": 10500, "van8": 14500, "van24": 30000},
+            {"salida": "SANTO DOMINGO", "destino": "BAYHIBE", "precio": 9000, "van4": 11000, "van8": 15000, "van24": 35000},
+            {"salida": "AEROPUERTO AILA", "destino": "HIGUEY", "precio": 9000, "van4": 11000, "van8": 15000, "van24": 37000},
+            {"salida": "SANTO DOMINGO", "destino": "HIGUEY", "precio": 9500, "van4": 11500, "van8": 15500, "van24": 39000}
+        ],
+        "currency": "USD",
+        "location": "dr"
     })
 
 @app.route('/bookings', methods=['POST'])
