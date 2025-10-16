@@ -759,7 +759,14 @@ def create_booking():
                 "van_8": {"base_rate": 12000, "per_hour_rate": 15000, "minimum_charge": 12000, "airport_transfer_rate": 15000},
                 "van_24": {"base_rate": 20000, "per_hour_rate": 25000, "minimum_charge": 20000, "airport_transfer_rate": 25000},
                 "executive_sedan": {"base_rate": 6000, "per_hour_rate": 8000, "minimum_charge": 6000, "airport_transfer_rate": 8000},
-                "luxury_suv": {"base_rate": 8000, "per_hour_rate": 10000, "minimum_charge": 8000, "airport_transfer_rate": 10000}
+                "luxury_suv": {"base_rate": 8000, "per_hour_rate": 10000, "minimum_charge": 8000, "airport_transfer_rate": 10000},
+                # DR Fleet Vehicles
+                "hyundai_staria_2024": {"base_rate": 12000, "per_hour_rate": 15000, "minimum_charge": 12000, "airport_transfer_rate": 15000},
+                "hyundai_starex_2020": {"base_rate": 10000, "per_hour_rate": 12000, "minimum_charge": 10000, "airport_transfer_rate": 12000},
+                "hyundai_starex_2019": {"base_rate": 9000, "per_hour_rate": 11000, "minimum_charge": 9000, "airport_transfer_rate": 11000},
+                "toyota_coaster_2024": {"base_rate": 15000, "per_hour_rate": 18000, "minimum_charge": 15000, "airport_transfer_rate": 18000},
+                "higer_2020": {"base_rate": 11000, "per_hour_rate": 13000, "minimum_charge": 11000, "airport_transfer_rate": 13000},
+                "suburban_2019": {"base_rate": 8000, "per_hour_rate": 10000, "minimum_charge": 8000, "airport_transfer_rate": 10000}
             }
         else:
             pricing_structure = {
