@@ -735,10 +735,52 @@ def create_booking():
         booking_id = f"BLX-2025-{str(uuid.uuid4())[:8].upper()}"
         booking_uuid = str(uuid.uuid4())
         
-        # Calculate estimated price (simplified)
+        # Calculate estimated price using proper pricing structure
         vehicle_type = data.get('vehicle_type', 'executive_sedan')
-        base_price = pricing_data.get(vehicle_type, 15000)
-        estimated_price = base_price
+        estimated_duration = data.get('estimated_duration', 60)  # minutes
+        pickup_location = data.get('pickup_location', '').lower()
+        dropoff_location = data.get('dropoff_location', '').lower()
+        
+        # Determine if this is an airport transfer
+        is_airport_transfer = (
+            'airport' in pickup_location or 'airport' in dropoff_location or
+            'jfk' in pickup_location or 'jfk' in dropoff_location or
+            'lga' in pickup_location or 'lga' in dropoff_location or
+            'ewr' in pickup_location or 'ewr' in dropoff_location
+        )
+        
+        # Get pricing data based on location
+        location = 'dr' if any(dr_indicator in pickup_location.lower() or dr_indicator in dropoff_location.lower() 
+                             for dr_indicator in ['santo domingo', 'punta cana', 'bavaro', 'santiago', 'puerto plata']) else 'nyc'
+        
+        if location == 'dr':
+            pricing_structure = {
+                "van_4": {"base_rate": 8000, "per_hour_rate": 10000, "minimum_charge": 8000, "airport_transfer_rate": 10000},
+                "van_8": {"base_rate": 12000, "per_hour_rate": 15000, "minimum_charge": 12000, "airport_transfer_rate": 15000},
+                "van_24": {"base_rate": 20000, "per_hour_rate": 25000, "minimum_charge": 20000, "airport_transfer_rate": 25000},
+                "executive_sedan": {"base_rate": 6000, "per_hour_rate": 8000, "minimum_charge": 6000, "airport_transfer_rate": 8000},
+                "luxury_suv": {"base_rate": 8000, "per_hour_rate": 10000, "minimum_charge": 8000, "airport_transfer_rate": 10000}
+            }
+        else:
+            pricing_structure = {
+                "executive_sedan": {"base_rate": 2500, "per_hour_rate": 6500, "minimum_charge": 5000, "airport_transfer_rate": 7500},
+                "luxury_suv": {"base_rate": 3500, "per_hour_rate": 9500, "minimum_charge": 7000, "airport_transfer_rate": 10500},
+                "sprinter_van": {"base_rate": 5000, "per_hour_rate": 12000, "minimum_charge": 10000, "airport_transfer_rate": 15000},
+                "stretch_limo": {"base_rate": 6000, "per_hour_rate": 15000, "minimum_charge": 12000, "airport_transfer_rate": 18000}
+            }
+        
+        # Calculate price based on vehicle type and duration
+        vehicle_pricing = pricing_structure.get(vehicle_type, pricing_structure.get('executive_sedan'))
+        if not vehicle_pricing:
+            vehicle_pricing = pricing_structure.get('executive_sedan')
+        
+        if is_airport_transfer:
+            estimated_price = vehicle_pricing['airport_transfer_rate']
+        else:
+            # Calculate based on duration
+            hours = max(1, estimated_duration / 60)  # Minimum 1 hour
+            calculated_price = vehicle_pricing['base_rate'] + (hours * vehicle_pricing['per_hour_rate'])
+            estimated_price = max(calculated_price, vehicle_pricing['minimum_charge'])
         
         # Create booking record
         booking = {
