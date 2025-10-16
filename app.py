@@ -643,33 +643,33 @@ def get_pricing():
             "location": "dr"
         })
     else:
-        return jsonify({
-            "pricing": {
-                "executive_sedan": {
-                    "airport_transfer_rate": 7500,  # $75.00 in cents
-                    "base_rate": 2500,  # $25.00 in cents
-                    "minimum_charge": 5000,  # $50.00 in cents
-                    "per_hour_rate": 6500   # $65.00 in cents
-                },
-                "luxury_suv": {
-                    "airport_transfer_rate": 10500,  # $105.00 in cents
-                    "base_rate": 3500,  # $35.00 in cents
-                    "minimum_charge": 7000,  # $70.00 in cents
-                    "per_hour_rate": 9500   # $95.00 in cents
-                },
-                "sprinter_van": {
-                    "airport_transfer_rate": 15000,  # $150.00 in cents
-                    "base_rate": 5000,  # $50.00 in cents
-                    "minimum_charge": 10000,  # $100.00 in cents
-                    "per_hour_rate": 12000   # $120.00 in cents
-                },
-                "stretch_limo": {
-                    "airport_transfer_rate": 18000,  # $180.00 in cents
-                    "base_rate": 6000,  # $60.00 in cents
-                    "minimum_charge": 12000,  # $120.00 in cents
-                    "per_hour_rate": 15000   # $150.00 in cents
-                }
+    return jsonify({
+        "pricing": {
+            "executive_sedan": {
+                "airport_transfer_rate": 7500,  # $75.00 in cents
+                "base_rate": 2500,  # $25.00 in cents
+                "minimum_charge": 5000,  # $50.00 in cents
+                "per_hour_rate": 6500   # $65.00 in cents
             },
+            "luxury_suv": {
+                "airport_transfer_rate": 10500,  # $105.00 in cents
+                "base_rate": 3500,  # $35.00 in cents
+                "minimum_charge": 7000,  # $70.00 in cents
+                "per_hour_rate": 9500   # $95.00 in cents
+            },
+            "sprinter_van": {
+                "airport_transfer_rate": 15000,  # $150.00 in cents
+                "base_rate": 5000,  # $50.00 in cents
+                "minimum_charge": 10000,  # $100.00 in cents
+                "per_hour_rate": 12000   # $120.00 in cents
+            },
+            "stretch_limo": {
+                "airport_transfer_rate": 18000,  # $180.00 in cents
+                "base_rate": 6000,  # $60.00 in cents
+                "minimum_charge": 12000,  # $120.00 in cents
+                "per_hour_rate": 15000   # $150.00 in cents
+            }
+        },
             "currency": "USD",
             "location": "nyc"
         })
